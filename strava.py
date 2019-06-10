@@ -26,6 +26,18 @@ EXPIRES_AT=""
 
 RECORDS = {"ACCESS_TOKEN": "", "REFRESH_TOKEN": "", "EXPIRES_AT": "", "uploaded_ids": {} }
 
+def check_for_data():
+        for activity in resp:
+            start_date_local = activity["start_date_local"].split("T")[0]
+            upload_id = activity["upload_id"]
+            distance = float(activity["distance"])
+
+            if upload_id in RECORDS["uploaded_ids"]:
+                continue
+            else:
+                RECORDS["uploaded_ids"][upload_id] = None
+                print(distance)
+
 
 def authenticate():
     try:
