@@ -46,11 +46,11 @@ def log_into_site():
     global driver
     options = Options()
     options.headless = True
-    driver = webdriver.Firefox()
+    driver = webdriver.Firefox(options=options)
     driver.get("http://www.logarun.com/logon.aspx")
 
-    driver.find_element_by_id("LoginName").send_keys(username)
-    driver.find_element_by_id("Password").send_keys(password)
+    driver.find_element_by_id("LoginName").send_keys(USERNAME)
+    driver.find_element_by_id("Password").send_keys(PASSWORD)
 
     driver.find_element_by_id("LoginNow").click()
 
@@ -64,12 +64,11 @@ def authenticate():
 
     resp = requests.post("https://www.strava.com/oauth/token", params={"client_id":CLIENT_ID, "client_secret":CLIENT_SECRET, "code":CODE, "grant_type":GRANT_TYPE}).json()
 
-
     return resp["access_token"], resp["refresh_token"], resp["expires_at"]
 
 
 def upload_run(date, distance):
-    driver.get('http://www.logarun.com/Edit.aspx?username={0}&date={1}/{2}/{3}'.format(username, date["month"], date["day"], date["year"]))
+    driver.get('http://www.logarun.com/Edit.aspx?username={0}&date={1}/{2}/{3}'.format(USERNAME, date["month"], date["day"], date["year"]))
 
     dist_elem = driver.find_element_by_xpath('//*[@datatype="Distance"]')
     ActionChains(driver).click(dist_elem).key_down(Keys.CONTROL).key_down("A").key_up("A").key_up(Keys.CONTROL).send_keys(Keys.BACKSPACE).perform()
@@ -90,40 +89,44 @@ def check_for_data():
         start_date_local = activity["start_date_local"].split("T")[0].split("-")
         date = {"year": start_date_local[0], "month": start_date_local[1], "day": start_date_local[2]}
         upload_id = activity["upload_id"]
-        distance_mi = float(activity["distance"])/1609.344
+        distance_mi = float(activity["distance"])
 
         if upload_id in RECORDS["uploaded_ids"]:
             continue
         else:
-            RECORDS["uploaded_ids"][upload_id] = None
             try:
                 upload_run(date, str(distance_mi))
                 print("Uploaded: " + str(upload_id))
             except:
                 print("Failed to upload: " + str(upload_id))
 
+            RECORDS["uploaded_ids"][upload_id] = None
+
 
 def main():
     global driver
     global RECORDS
+    cur_path = os.path.dirname(os.path.realpath(__file__))
     try:
-        if not os.path.exists("./records.pkl"):
-            with open("records.pkl", "wb") as f:
-                print("First time setting up: ")
-                RECORDS["ACCESS_TOKEN"], RECORDS["REFRESH_TOKEN"], RECORDS["EXPIRES_AT"] = authenticate()
+        if not os.path.exists(cur_path + "/records.pkl"):
+            print("First time setting up: ")
+            RECORDS["ACCESS_TOKEN"], RECORDS["REFRESH_TOKEN"], RECORDS["EXPIRES_AT"] = authenticate()
+
+            with open(cur_path + "/records.pkl", "wb") as f:
                 pickle.dump(RECORDS, f)
 
-        with open("records.pkl", "rb") as f:
+        with open(cur_path + "/records.pkl", "rb") as f:
             RECORDS = pickle.load(f)
 
         check_for_data()
 
-        with open("records.pkl", "wb") as f:
+        with open(cur_path + "/records.pkl", "wb") as f:
             pickle.dump(RECORDS, f)
     except KeyboardInterrupt:
         print('shutting down the web server')
 
-    driver.quit()
+    if driver:
+        driver.quit()
 
 
 if __name__ == "__main__":
