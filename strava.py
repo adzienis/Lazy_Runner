@@ -1,13 +1,14 @@
 import http.server
-import socketserver
 import requests
 import json
+import os
+import pickle
+
+from collections import defaultdict
+
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.firefox.options import Options
-
-import os
-import pickle
 from selenium.webdriver.common.action_chains import ActionChains
 
 PORT_NUMBER=5000
@@ -30,6 +31,8 @@ driver = None
 USERNAME = "***REMOVED***"
 PASSWORD = "***REMOVED***"
 
+CUR_PATH = os.path.dirname(os.path.realpath(__file__))
+
 class myHandler(http.server.BaseHTTPRequestHandler):
     #Handler for the GET requests
     def do_GET(self):
@@ -39,20 +42,22 @@ class myHandler(http.server.BaseHTTPRequestHandler):
         self.send_header('Content-type','text/html')
         self.end_headers()
         # Send the html message
-        self.wfile.write("Hello World !".encode())
+        self.wfile.write("All good, just exit the tab!".encode())
         return
 
 def log_into_site():
     global driver
     options = Options()
     options.headless = True
-    driver = webdriver.Firefox(options=options)
+    driver = webdriver.Firefox()
     driver.get("http://www.logarun.com/logon.aspx")
 
     driver.find_element_by_id("LoginName").send_keys(USERNAME)
     driver.find_element_by_id("Password").send_keys(PASSWORD)
 
     driver.find_element_by_id("LoginNow").click()
+
+    return
 
 
 def authenticate():
@@ -80,53 +85,74 @@ def upload_run(date, distance):
 
     driver.find_element_by_xpath('//*[@value="Save"]').click()
 
+    return
+
 def check_for_data():
+    new_dict = defaultdict(list)
     resp = requests.get("https://www.strava.com/api/v3/athlete/activities", headers={'Authorization': 'access_token ' + RECORDS["ACCESS_TOKEN"]}).json()
 
-    log_into_site()
-
     for activity in resp:
-        start_date_local = activity["start_date_local"].split("T")[0].split("-")
+        full_date = activity["start_date_local"].split("T")[0]
+        start_date_local = full_date.split("-")
         date = {"year": start_date_local[0], "month": start_date_local[1], "day": start_date_local[2]}
         upload_id = activity["upload_id"]
-        distance_mi = float(activity["distance"])
+        distance_mi = float(activity["distance"])/1609.344
 
-        if upload_id in RECORDS["uploaded_ids"]:
-            continue
-        else:
-            try:
-                upload_run(date, str(distance_mi))
-                print("Uploaded: " + str(upload_id))
-            except:
-                print("Failed to upload: " + str(upload_id))
+        new_dict[full_date].append({"date": date, "upload_id":upload_id, "distance_mi": distance_mi })
 
-            RECORDS["uploaded_ids"][upload_id] = None
+    return new_dict
 
 
 def main():
     global driver
     global RECORDS
-    cur_path = os.path.dirname(os.path.realpath(__file__))
+
     try:
-        if not os.path.exists(cur_path + "/records.pkl"):
+        if not os.path.exists(CUR_PATH + "/records.pkl"):
             print("First time setting up: ")
             RECORDS["ACCESS_TOKEN"], RECORDS["REFRESH_TOKEN"], RECORDS["EXPIRES_AT"] = authenticate()
 
-            with open(cur_path + "/records.pkl", "wb") as f:
+            with open(CUR_PATH + "/records.pkl", "wb") as f:
                 pickle.dump(RECORDS, f)
 
-        with open(cur_path + "/records.pkl", "rb") as f:
+        with open(CUR_PATH + "/records.pkl", "rb") as f:
             RECORDS = pickle.load(f)
 
-        check_for_data()
+        new_dict = check_for_data()
 
-        with open(cur_path + "/records.pkl", "wb") as f:
+        log_into_site()
+
+        for k in list(new_dict):
+
+            temp = k.split("-")
+
+            date = {"year": temp[0], "month": temp[1], "day": temp[2]}
+            uploaded_entry = {"date": k, "ids": [], "distance": 0.0}
+
+
+            if k in RECORDS["uploaded_ids"]:
+                continue
+
+            for inner_entry in list(new_dict[k]):
+                uploaded_entry["distance"] += inner_entry["distance_mi"]
+
+            RECORDS["uploaded_ids"][k] = None
+
+            try:
+                upload_run(date, str(uploaded_entry["distance"]))
+                print("Uploaded: " + str(uploaded_entry["date"]))
+            except:
+                print("Failed to upload: " + uploaded_entry["date"])
+
+        with open(CUR_PATH + "/records.pkl", "wb") as f:
             pickle.dump(RECORDS, f)
     except KeyboardInterrupt:
         print('shutting down the web server')
 
     if driver:
         driver.quit()
+
+    return
 
 
 if __name__ == "__main__":
