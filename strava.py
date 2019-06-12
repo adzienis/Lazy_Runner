@@ -52,8 +52,8 @@ def authenticate():
     URL=("https://www.strava.com/oauth/authorize?client_id={0}&"
             "redirect_uri={1}&"
             "approval_prompt=auto&"
-            "response_type={2}&"
-            "scope={3}").format(CONFIG["STRAVA"]["CLIENT_ID"], CONFIG["STRAVA"]["REDIRECT_URI"], CONFIG["STRAVA"]["RESPONSE_TYPE"], CONFIG["STRAVA"]["SCOPE"])
+            "response_type=code&"
+            "scope={2}").format(CONFIG["STRAVA"]["CLIENT_ID"], CONFIG["STRAVA"]["REDIRECT_URI"], CONFIG["STRAVA"]["SCOPE"])
 
     print("Paste this URL: " + URL)
 
