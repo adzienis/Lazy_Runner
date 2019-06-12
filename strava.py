@@ -22,6 +22,10 @@ driver = None
 CONFIG = None
 CUR_PATH = os.path.dirname(os.path.realpath(__file__))
 
+"""
+Basic http server to handle retrieving authentication code when the
+user logs in give access. Simply updates CODE above
+"""
 class myHandler(http.server.BaseHTTPRequestHandler):
     #Handler for the GET requests
     def do_GET(self):
@@ -34,11 +38,16 @@ class myHandler(http.server.BaseHTTPRequestHandler):
         self.wfile.write("All good, just exit the tab!".encode())
         return
 
+"""
+Handles logging into the Logarun website. Is done once
+upon every invocation of strava.py. Also sets up the driver,
+and makes it headless by default.
+"""
 def log_into_site():
     global driver
     options = Options()
     options.headless = True
-    driver = webdriver.Firefox()
+    driver = webdriver.Firefox(options=options)
     driver.get("http://www.logarun.com/logon.aspx")
 
     driver.find_element_by_id("LoginName").send_keys(CONFIG["LOGARUN"]["USERNAME"])
@@ -47,6 +56,13 @@ def log_into_site():
     driver.find_element_by_id("LoginNow").click()
     return
 
+"""
+Handles initial authentication to use the Strava API. By default, our scope is to read
+all information, which is necessary even for public activities, as I've found.
+Quickly runs a really lightweight http server to handle one request, which is when
+the user is redirected to localhost after clicking to accept. Makes a POST to
+receive the access_token and refresh_tokens.
+"""
 def authenticate():
     server = http.server.HTTPServer(('', CONFIG["LOGARUN"].getint("PORT")), myHandler)
     URL=("https://www.strava.com/oauth/authorize?client_id={0}&"
@@ -65,6 +81,10 @@ def authenticate():
 
     return json_out["access_token"], json_out["refresh_token"], json_out["expires_at"]
 
+"""
+The access_token expires every some seconds, so we just refresh the token by default every time we sync up.
+Just makes a POST to an endpoint and receives the tokens. Straightforward
+"""
 def refresh_token():
     URL = "https://www.strava.com/oauth/token"
 
@@ -78,6 +98,14 @@ def refresh_token():
     RECORDS["access_token"] = json_out["access_token"]
 
 
+"""
+Uploads the run for a particular date. Sets the title to the date of the run. If a run already exists posted, it will fail and
+throw an exception, which is handled in main.
+
+@param date:str Dictionary consisting of "year", "month", and "day". Supposed to resemble a date as follows: MM/DD/YYYY
+@param distance:str String encoding of the mileage for a particular date. In miles.
+@see main
+"""
 def upload_run(date, distance):
     driver.get('http://www.logarun.com/Edit.aspx?username={0}&date={1}/{2}/{3}'.format(CONFIG["LOGARUN"]["USERNAME"], date["month"], date["day"], date["year"]))
 
@@ -93,6 +121,11 @@ def upload_run(date, distance):
 
     return
 
+"""
+Queries Strava API for a list of all activities. Returns a dictionary in the form of a multi-map so we can handle
+multiple activities per date. The distance of each run is by default in meters, so we convert to miles. We
+also have to split the date passed back, which is in the format YYYY-MM-DD.
+"""
 def check_for_data():
     new_dict = defaultdict(list)
     resp = requests.get("https://www.strava.com/api/v3/athlete/activities", headers={'Authorization': 'access_token ' + RECORDS["ACCESS_TOKEN"]}).json()
@@ -108,7 +141,13 @@ def check_for_data():
 
     return new_dict
 
-
+"""
+Where the magic happens. We have the all the authentication crap stored as a pickled file,
+and we load/create it if it doesn't exist. Might just move this all into the config file. Automatically
+refreshes the token upon each invocation, checks the data, logs into Logarun, and uploads the data.
+Upon each invocation of this script, we record all of the dates that we uploaded to Logarun, and skip
+those which we have already uploaded. It's quicker. Dumps everything back into the pickled file
+"""
 def main():
     global driver
     global RECORDS
@@ -162,7 +201,9 @@ def main():
 
     return
 
-
+"""
+lololol main
+"""
 if __name__ == "__main__":
     CONFIG = configparser.ConfigParser()
     CONFIG.read("config.cfg")
