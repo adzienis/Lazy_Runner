@@ -41,14 +41,14 @@ def log_into_site():
     driver = webdriver.Firefox()
     driver.get("http://www.logarun.com/logon.aspx")
 
-    driver.find_element_by_id("LoginName").send_keys(CONFIG["DEFAULT"]["USERNAME"])
-    driver.find_element_by_id("Password").send_keys(CONFIG["DEFAULT"]["PASSWORD"])
+    driver.find_element_by_id("LoginName").send_keys(CONFIG["LOGARUN"]["USERNAME"])
+    driver.find_element_by_id("Password").send_keys(CONFIG["LOGARUN"]["PASSWORD"])
 
     driver.find_element_by_id("LoginNow").click()
     return
 
 def authenticate():
-    server = http.server.HTTPServer(('', CONFIG["DEFAULT"].getint("PORT")), myHandler)
+    server = http.server.HTTPServer(('', CONFIG["LOGARUN"].getint("PORT")), myHandler)
     URL=("https://www.strava.com/oauth/authorize?client_id={0}&"
             "redirect_uri={1}&"
             "approval_prompt=auto&"
@@ -79,7 +79,7 @@ def refresh_token():
 
 
 def upload_run(date, distance):
-    driver.get('http://www.logarun.com/Edit.aspx?username={0}&date={1}/{2}/{3}'.format(CONFIG["DEFAULT"]["USERNAME"], date["month"], date["day"], date["year"]))
+    driver.get('http://www.logarun.com/Edit.aspx?username={0}&date={1}/{2}/{3}'.format(CONFIG["LOGARUN"]["USERNAME"], date["month"], date["day"], date["year"]))
 
     dist_elem = driver.find_element_by_xpath('//*[@datatype="Distance"]')
     ActionChains(driver).click(dist_elem).key_down(Keys.CONTROL).key_down("A").key_up("A").key_up(Keys.CONTROL).send_keys(Keys.BACKSPACE).perform()
