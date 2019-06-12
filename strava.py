@@ -11,26 +11,15 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.common.action_chains import ActionChains
 
-PORT_NUMBER=5000
+import configparser
 
-CLIENT_ID="***REMOVED***"
-CLIENT_SECRET="***REMOVED***"
 CODE= ""
-GRANT_TYPE="authorization_code"
-
-REDIRECT_URI="http://localhost:5000"
-RESPONSE_TYPE="code"
-SCOPE="activity:read_all"
-
-URL="https://www.strava.com/oauth/authorize?client_id={0}&redirect_uri={1}&approval_prompt=auto&response_type={2}&scope={3}".format(CLIENT_ID, REDIRECT_URI, RESPONSE_TYPE, SCOPE)
 
 RECORDS = {"ACCESS_TOKEN": "", "REFRESH_TOKEN": "", "EXPIRES_AT": "", "uploaded_ids": {} }
 
 driver = None
 
-USERNAME = "***REMOVED***"
-PASSWORD = "***REMOVED***"
-
+CONFIG = None
 CUR_PATH = os.path.dirname(os.path.realpath(__file__))
 
 class myHandler(http.server.BaseHTTPRequestHandler):
@@ -52,28 +41,45 @@ def log_into_site():
     driver = webdriver.Firefox()
     driver.get("http://www.logarun.com/logon.aspx")
 
-    driver.find_element_by_id("LoginName").send_keys(USERNAME)
-    driver.find_element_by_id("Password").send_keys(PASSWORD)
+    driver.find_element_by_id("LoginName").send_keys(CONFIG["DEFAULT"]["USERNAME"])
+    driver.find_element_by_id("Password").send_keys(CONFIG["DEFAULT"]["PASSWORD"])
 
     driver.find_element_by_id("LoginNow").click()
-
     return
 
-
 def authenticate():
-    server = http.server.HTTPServer(('', PORT_NUMBER), myHandler)
+    server = http.server.HTTPServer(('', CONFIG["DEFAULT"].getint("PORT")), myHandler)
+    URL=("https://www.strava.com/oauth/authorize?client_id={0}&"
+            "redirect_uri={1}&"
+            "approval_prompt=auto&"
+            "response_type={2}&"
+            "scope={3}").format(CONFIG["STRAVA"]["CLIENT_ID"], CONFIG["STRAVA"]["REDIRECT_URI"], CONFIG["STRAVA"]["RESPONSE_TYPE"], CONFIG["STRAVA"]["SCOPE"])
 
     print("Paste this URL: " + URL)
 
     server.handle_request()
 
-    resp = requests.post("https://www.strava.com/oauth/token", params={"client_id":CLIENT_ID, "client_secret":CLIENT_SECRET, "code":CODE, "grant_type":GRANT_TYPE}).json()
+    resp = requests.post("https://www.strava.com/oauth/token", params={"client_id":CONFIG["STRAVA"]["CLIENT_ID"], "client_secret":CONFIG["STRAVA"]["CLIENT_SECRET"], "code":CODE, "grant_type": "authorization_code" })
 
-    return resp["access_token"], resp["refresh_token"], resp["expires_at"]
+    json_out = resp.json()
+
+    return json_out["access_token"], json_out["refresh_token"], json_out["expires_at"]
+
+def refresh_token():
+    URL = "https://www.strava.com/oauth/token"
+
+    resp = requests.post(URL, params={ "client_id": CONFIG["STRAVA"]["CLIENT_ID"],
+        "client_secret": CONFIG["STRAVA"]["CLIENT_SECRET"],
+        "grant_type": "refresh_token",
+        "refresh_token": RECORDS["REFRESH_TOKEN"]})
+
+    json_out = resp.json()
+
+    RECORDS["access_token"] = json_out["access_token"]
 
 
 def upload_run(date, distance):
-    driver.get('http://www.logarun.com/Edit.aspx?username={0}&date={1}/{2}/{3}'.format(USERNAME, date["month"], date["day"], date["year"]))
+    driver.get('http://www.logarun.com/Edit.aspx?username={0}&date={1}/{2}/{3}'.format(CONFIG["DEFAULT"]["USERNAME"], date["month"], date["day"], date["year"]))
 
     dist_elem = driver.find_element_by_xpath('//*[@datatype="Distance"]')
     ActionChains(driver).click(dist_elem).key_down(Keys.CONTROL).key_down("A").key_up("A").key_up(Keys.CONTROL).send_keys(Keys.BACKSPACE).perform()
@@ -118,6 +124,8 @@ def main():
         with open(CUR_PATH + "/records.pkl", "rb") as f:
             RECORDS = pickle.load(f)
 
+        refresh_token()
+
         new_dict = check_for_data()
 
         log_into_site()
@@ -156,5 +164,8 @@ def main():
 
 
 if __name__ == "__main__":
+    CONFIG = configparser.ConfigParser()
+    CONFIG.read("config.cfg")
+
     main()
 
