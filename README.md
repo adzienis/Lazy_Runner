@@ -3,6 +3,11 @@ Tested on Python 3.4.3. Only external packages required are Selenium and Request
 ```
 pip3 install selenium
 pip3 install requests
+pip3 install Random-Word
+```
+
+```
+Or run pip3 install -r requirements.txt
 ```
 
 # Configuration File

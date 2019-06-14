@@ -3,6 +3,7 @@ import requests
 import json
 import os
 import pickle
+from random_word import RandomWords
 
 from collections import defaultdict
 
@@ -113,9 +114,14 @@ def upload_run(date, distance):
     ActionChains(driver).click(dist_elem).key_down(Keys.CONTROL).key_down("A").key_up("A").key_up(Keys.CONTROL).send_keys(Keys.BACKSPACE).perform()
     dist_elem.send_keys(distance)
 
+    r = RandomWords()
+    word = r.word_of_the_day()
+    random_title = word["word"]
+    
     title_elem = driver.find_element_by_id("ctl00_Content_c_dayTitle_c_title")
     ActionChains(driver).click(title_elem).key_down(Keys.CONTROL).key_down("A").key_up("A").key_up(Keys.CONTROL).send_keys(Keys.BACKSPACE).perform()
-    title_elem.send_keys("{0}/{1}/{2}".format(date["month"], date["day"], date["year"]))
+    #title_elem.send_keys("{0}/{1}/{2}".format(date["month"], date["day"], date["year"]))
+    title_elem.send_keys(random_title)
 
     driver.find_element_by_xpath('//*[@value="Save"]').click()
 
